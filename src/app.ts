@@ -12,10 +12,7 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: [
-      'https://project.axivers.com', // your frontend domain
-      'http://localhost:3000', // optional (for local dev)
-    ],
+    origin: ['https://project.axivers.com', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -23,7 +20,7 @@ app.use(
 );
 
 // VERY IMPORTANT
-app.options('*', cors());
+app.use(cors());
 
 app.use(morgan('dev'));
 app.use(express.json());
