@@ -1,22 +1,23 @@
-# Task Management Backend
+# Task Management Backend (Firestore Edition)
 
 ## Overview
 
-A robust Node.js/Express backend for a Task Management System, using MySQL as the database and Prisma/Sequelize as the ORM.
+A high-performance Node.js/Express backend for a Task Management System, fully migrated to **Google Cloud Firestore**. This architecture uses NoSQL denormalization (embedded snapshots) for maximum speed and scalability on Google Cloud Run.
 
 ## Tech Stack
 
 - **Runtime**: Node.js
 - **Language**: TypeScript
 - **Framework**: Express.js
-- **Database**: MySQL (Database name: `hello_manage`)
-- **ORM**: Prisma
+- **Database**: Google Cloud Firestore
+- **SDK**: Firebase Admin SDK
 - **Authentication**: JWT, bcryptjs
 
 ## Prerequisites
 
 - Node.js (v18+)
-- MySQL Server running locally or remotely
+- A Google Cloud Project with Firestore enabled.
+- A Service Account Key file (`.json`) with "Cloud Datastore User" permissions.
 
 ## Setup Instructions
 
@@ -31,17 +32,22 @@ A robust Node.js/Express backend for a Task Management System, using MySQL as th
       ```bash
       cp .env.example .env
       ```
-    - Update `DATABASE_URL` in `.env` with your MySQL credentials:
+    - Update the configuration:
       ```env
-      DATABASE_URL="mysql://user:password@localhost:3306/hello_manage"
+      JWT_SECRET="your_secret_key"
+      PORT=5000
+      FIREBASE_SERVICE_ACCOUNT_PATH="path/to/your/service-account.json"
       ```
 
-3.  **Database Migration**:
-    - Run migrations to create the database (`hello_manage`) and tables:
-      ```bash
-      npx prisma migrate dev --name init
-      ```
-    - _Note_: This will automatically generate the Prisma Client.
+3.  **Data Migration (Optional)**:
+    If you are migrating from the old MySQL version, run the migration script:
+
+    ```bash
+    # Test first
+    node scripts/migrate-to-firestore.js --dry-run
+    # Execute
+    node scripts/migrate-to-firestore.js
+    ```
 
 4.  **Start the Server**:
     - Development Mode:
@@ -49,35 +55,43 @@ A robust Node.js/Express backend for a Task Management System, using MySQL as th
       npm run dev
       ```
     - The server will start on port 5000 (default).
-    - **Seeding**: The server automatically seeds a default Super Admin user on startup if one does not exist.
-      - Email: `avsinfo0824@gmail.com`
-      - Password: `admin123`
+
+## Database Architecture (NoSQL)
+
+This project uses a denormalized schema for better performance:
+
+- **Tasks**: Embeds snapshots of the `creator` and `assignee` (`{id, name, avatar}`).
+- **Activity Logs**: Embeds snapshots of the `user` who performed the action.
+- **Transactions**: All critical updates (task changes + logging) are performed via `firestore.runTransaction()`.
 
 ## API Endpoints
 
 ### Auth
 
-- `POST /api/auth/login`: Login
-- `POST /api/auth/change-password`: Change password
+- `POST /api/auth/register`: Register new user
+- `POST /api/auth/login`: Login & receive JWT
+- `GET /api/auth/me`: Get current user profile
+- `POST /api/auth/change-password`: Update password
 
 ### Users
 
-- `GET /api/users`: List all users (Admin)
+- `GET /api/users`: List users (Paginated)
 - `GET /api/users/:id`: Get user details
-- `POST /api/users`: Create user (Admin) - Returns temp password
-- `PUT /api/users/:id`: Update user
-- `DELETE /api/users/:id`: Delete user (Admin)
+- `POST /api/users`: Admin create user
+- `PUT /api/users/:id`: Update user profile
+- `DELETE /api/users/:id`: Delete user & cleanup assignments
 
 ### Tasks
 
-- `GET /api/tasks`: List all tasks (Filter by status, assignee, priority)
-- `GET /api/tasks/:id`: Get task details
+- `GET /api/tasks`: List tasks (Filtered & Paginated)
+- `GET /api/tasks/:id`: Get task with activity logs
 - `POST /api/tasks`: Create task
 - `PUT /api/tasks/:id`: Update task
-- `PATCH /api/tasks/:id/status`: Update task status
-- `DELETE /api/tasks/:id`: Delete task
+- `PATCH /api/tasks/:id/status`: Update status
+- `DELETE /api/tasks/:id`: Delete task & logs
 
 ## Scripts
 
-- `npm run build`: Build for production
-- `npm start`: Start production server
+- `npm run build`: Compile TypeScript
+- `npm start`: Production start
+- `node scripts/migrate-to-firestore.js`: MySQL to Firestore migration utility

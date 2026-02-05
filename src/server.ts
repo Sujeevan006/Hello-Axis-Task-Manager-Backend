@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import app from './app';
-import { seedAdmin } from './utils/seed';
 
 const PORT = process.env.PORT || 5000;
 
