@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { firestore, Timestamp } from '../utils/firebase';
+import { Role } from '../types/enums';
 
 /**
  * List all users with pagination
@@ -8,6 +9,7 @@ import { firestore, Timestamp } from '../utils/firebase';
  */
 export const listUsers = async (req: Request, res: Response) => {
   try {
+    console.log('📋 Fetching user list... Query:', req.query);
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const offset = (page - 1) * limit;
@@ -28,7 +30,7 @@ export const listUsers = async (req: Request, res: Response) => {
     const users = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
-        id: data.id,
+        id: doc.id,
         name: data.name,
         email: data.email,
         role: data.role,
@@ -84,11 +86,14 @@ export const getUser = async (req: Request, res: Response) => {
  * POST /api/users
  */
 export const createUser = async (req: Request, res: Response) => {
-  const { name, email, role, avatar, department } = req.body;
+  let { name, email, role, avatar, department } = req.body;
 
   if (!name || !email) {
     return res.status(400).json({ message: 'Name and email are required' });
   }
+
+  // Normalize email
+  email = email.toLowerCase().trim();
 
   try {
     console.log('🔧 Creating user with data:', {
@@ -125,7 +130,7 @@ export const createUser = async (req: Request, res: Response) => {
       id,
       name,
       email,
-      role: role || 'user',
+      role: role || Role.staff,
       avatar: avatar || null,
       department: department || null,
       password: hashedPassword,

@@ -3,17 +3,21 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { firestore, Timestamp } from '../utils/firebase';
+import { Role } from '../types/enums';
 
 /**
  * User Login
  * POST /api/auth/login
  */
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required' });
   }
+
+  // Normalize email
+  email = email.toLowerCase().trim();
 
   try {
     console.log('🔑 Login attempt:', email);
@@ -26,7 +30,9 @@ export const login = async (req: Request, res: Response) => {
 
     if (userQuery.empty) {
       console.log('❌ Login failed: User not found', email);
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res
+        .status(401)
+        .json({ message: 'User not found. Check email spelling.' });
     }
 
     const userDoc = userQuery.docs[0];
@@ -39,8 +45,10 @@ export const login = async (req: Request, res: Response) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log('❌ Login failed: Incorrect password', email);
-      return res.status(401).json({ message: 'Invalid credentials' });
+      console.log('❌ Login failed: Incorrect password for', email);
+      return res
+        .status(401)
+        .json({ message: 'Incorrect password. Please try again.' });
     }
 
     const token = jwt.sign(
@@ -107,7 +115,7 @@ export const register = async (req: Request, res: Response) => {
       name,
       email,
       password: hashedPassword,
-      role: role || 'user',
+      role: role || Role.staff,
       avatar: avatar || null,
       department: department || null,
       needs_password_change: false,
