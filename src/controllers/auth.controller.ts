@@ -3,23 +3,17 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { firestore, Timestamp } from '../utils/firebase';
-import {
-  loginSchema,
-  changePasswordSchema,
-  registerSchema,
-} from '../schema/zod.schema';
 
 /**
  * User Login
  * POST /api/auth/login
  */
 export const login = async (req: Request, res: Response) => {
-  const validation = loginSchema.safeParse(req.body);
-  if (!validation.success) {
-    return res.status(400).json({ errors: validation.error.issues });
-  }
+  const { email, password } = req.body;
 
-  const { email, password } = validation.data;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
+  }
 
   try {
     const userQuery = await firestore
@@ -42,7 +36,7 @@ export const login = async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET as string,
+      process.env.JWT_SECRET as string, // Changed from 'your-secret-key'
       { expiresIn: '1d' },
     );
 
@@ -56,7 +50,7 @@ export const login = async (req: Request, res: Response) => {
         avatar: user.avatar,
         department: user.department,
         needs_password_change: user.needs_password_change,
-        created_at: user.created_at?.toDate() || null,
+        created_at: user.created_at ? user.created_at.toDate() : null,
       },
     });
   } catch (error) {
@@ -70,12 +64,13 @@ export const login = async (req: Request, res: Response) => {
  * POST /api/auth/register
  */
 export const register = async (req: Request, res: Response) => {
-  const validation = registerSchema.safeParse(req.body);
-  if (!validation.success) {
-    return res.status(400).json({ errors: validation.error.issues });
-  }
+  const { name, email, role, avatar, department, password } = req.body;
 
-  const { name, email, role, avatar, department, password } = validation.data;
+  if (!name || !email || !password) {
+    return res
+      .status(400)
+      .json({ message: 'Name, email and password are required' });
+  }
 
   try {
     const userQuery = await firestore
@@ -97,7 +92,7 @@ export const register = async (req: Request, res: Response) => {
       name,
       email,
       password: hashedPassword,
-      role,
+      role: role || 'user',
       avatar: avatar || null,
       department: department || null,
       needs_password_change: false,
@@ -107,9 +102,11 @@ export const register = async (req: Request, res: Response) => {
 
     await firestore.collection('users').doc(id).set(newUser);
 
-    const token = jwt.sign({ id, role }, process.env.JWT_SECRET as string, {
-      expiresIn: '1d',
-    });
+    const token = jwt.sign(
+      { id: newUser.id, role: newUser.role },
+      process.env.JWT_SECRET as string, // Changed from 'your-secret-key'
+      { expiresIn: '1d' },
+    );
 
     res.status(201).json({
       token,
@@ -117,7 +114,7 @@ export const register = async (req: Request, res: Response) => {
         id,
         name,
         email,
-        role,
+        role: newUser.role,
         avatar: newUser.avatar,
         department: newUser.department,
         needs_password_change: newUser.needs_password_change,
@@ -135,7 +132,7 @@ export const register = async (req: Request, res: Response) => {
  * GET /api/auth/me
  */
 export const getProfile = async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user ? (req as any).user.id : null;
 
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized' });
@@ -156,7 +153,7 @@ export const getProfile = async (req: Request, res: Response) => {
       role: user.role,
       avatar: user.avatar,
       department: user.department,
-      created_at: user.created_at?.toDate() || null,
+      created_at: user.created_at ? user.created_at.toDate() : null,
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -169,26 +166,29 @@ export const getProfile = async (req: Request, res: Response) => {
  * POST /api/auth/change-password
  */
 export const changePassword = async (req: Request, res: Response) => {
-  const validation = changePasswordSchema.safeParse(req.body);
-  if (!validation.success) {
-    return res.status(400).json({ errors: validation.error.issues });
-  }
-
-  const { password, newPassword } = validation.data;
-  const userId = (req as any).user?.id;
+  const { password, newPassword } = req.body;
+  const userId = (req as any).user ? (req as any).user.id : null;
 
   if (!userId) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
+  if (!password || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: 'Current and new password are required' });
+  }
+
   try {
     const userDoc = await firestore.collection('users').doc(userId).get();
+
     if (!userDoc.exists) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const user = userDoc.data()!;
     const isMatch = await bcrypt.compare(password, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ message: 'Incorrect old password' });
     }

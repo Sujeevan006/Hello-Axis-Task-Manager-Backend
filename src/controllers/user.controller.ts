@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { firestore, Timestamp } from '../utils/firebase';
-import { createUserSchema, updateUserSchema } from '../schema/zod.schema';
 
 /**
  * List all users with pagination
@@ -35,7 +34,7 @@ export const listUsers = async (req: Request, res: Response) => {
         role: data.role,
         avatar: data.avatar,
         department: data.department,
-        created_at: data.created_at?.toDate() || null,
+        created_at: data.created_at ? data.created_at.toDate() : null,
       };
     });
 
@@ -72,7 +71,7 @@ export const getUser = async (req: Request, res: Response) => {
       role: user.role,
       avatar: user.avatar,
       department: user.department,
-      created_at: user.created_at?.toDate() || null,
+      created_at: user.created_at ? user.created_at.toDate() : null,
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -85,12 +84,11 @@ export const getUser = async (req: Request, res: Response) => {
  * POST /api/users
  */
 export const createUser = async (req: Request, res: Response) => {
-  const validation = createUserSchema.safeParse(req.body);
-  if (!validation.success) {
-    return res.status(400).json({ errors: validation.error.issues });
-  }
+  const { name, email, role, avatar, department } = req.body;
 
-  const { name, email, role, avatar, department } = validation.data;
+  if (!name || !email) {
+    return res.status(400).json({ message: 'Name and email are required' });
+  }
 
   try {
     const existingQuery = await firestore
@@ -98,6 +96,7 @@ export const createUser = async (req: Request, res: Response) => {
       .where('email', '==', email)
       .limit(1)
       .get();
+
     if (!existingQuery.empty) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -106,14 +105,15 @@ export const createUser = async (req: Request, res: Response) => {
     const tempPassword = Math.random().toString(36).slice(-8);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    const id = firestore.collection('users').doc().id; // Generate random Firestore ID or keep UUID
+    // Generate a new document ID
+    const id = firestore.collection('users').doc().id;
     const now = Timestamp.now();
 
     const newUser = {
       id,
       name,
       email,
-      role,
+      role: role || 'user',
       avatar: avatar || null,
       department: department || null,
       password: hashedPassword,
@@ -130,7 +130,7 @@ export const createUser = async (req: Request, res: Response) => {
         id,
         name,
         email,
-        role,
+        role: newUser.role,
         department: newUser.department,
       },
       tempPassword,
@@ -146,12 +146,12 @@ export const createUser = async (req: Request, res: Response) => {
  * PUT /api/users/:id
  */
 export const updateUser = async (req: Request, res: Response) => {
-  const validation = updateUserSchema.safeParse(req.body);
-  if (!validation.success) {
-    return res.status(400).json({ errors: validation.error.issues });
-  }
-
   const { id } = req.params;
+  const { name, email, role, avatar, department } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
 
   try {
     const userRef = firestore.collection('users').doc(id);
@@ -161,10 +161,15 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const updateData = {
-      ...validation.data,
-      updated_at: Timestamp.now(),
-    };
+    const updateData: any = {};
+
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (role !== undefined) updateData.role = role;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (department !== undefined) updateData.department = department;
+
+    updateData.updated_at = Timestamp.now();
 
     await userRef.update(updateData);
 
@@ -186,46 +191,76 @@ export const updateUser = async (req: Request, res: Response) => {
 };
 
 /**
+ * Update user role
+ * PUT /api/users/:id/role
+ */
+export const updateUserRole = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!id || !role) {
+    return res.status(400).json({ message: 'User ID and role are required' });
+  }
+
+  try {
+    const userRef = firestore.collection('users').doc(id);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await userRef.update({
+      role: role,
+      updated_at: Timestamp.now()
+    });
+
+    res.json({ message: 'User role updated successfully' });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
  * Delete user
  * DELETE /api/users/:id
  */
 export const deleteUser = async (req: Request, res: Response) => {
   const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'User ID is required' });
+  }
+
   try {
-    // Transactional delete: Clean up task assignments
-    await firestore.runTransaction(async (transaction) => {
-      const userRef = firestore.collection('users').doc(id);
-      const userDoc = await transaction.get(userRef);
+    // First, check if user exists
+    const userRef = firestore.collection('users').doc(id);
+    const userDoc = await userRef.get();
 
-      if (!userDoc.exists) {
-        throw new Error('User not found');
-      }
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-      // 1. Delete the user
-      transaction.delete(userRef);
-
-      // Note: In Firestore, finding and updating ALL tasks in a transaction
-      // might exceed limit if there are thousands.
-      // For a "small" project, we can query tasks.
-    });
+    // Delete the user
+    await userRef.delete();
 
     // Post-transaction cleanup: Detach from tasks (Async)
-    // We don't want to block the user deletion response too long if many tasks exist.
     const assignedTasks = await firestore
       .collection('tasks')
       .where('assignee.id', '==', id)
       .get();
-    const batch = firestore.batch();
-    assignedTasks.forEach((doc) => {
-      batch.update(doc.ref, { assignee: null });
-    });
-    await batch.commit();
+
+    if (!assignedTasks.empty) {
+      const batch = firestore.batch();
+      assignedTasks.forEach((doc) => {
+        batch.update(doc.ref, { assignee: null });
+      });
+      await batch.commit();
+    }
 
     res.json({ message: 'User deleted successfully' });
-  } catch (error: any) {
-    if (error.message === 'User not found') {
-      return res.status(404).json({ message: error.message });
-    }
+  } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ message: 'Server error' });
   }

@@ -1,177 +1,455 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
+'use strict';
+
+const { v4: uuidv4 } = require('uuid');
+const { firestore, Timestamp } = require('../utils/firebase');
+
+// Task Status Enum
+const TaskStatus = {
+  todo: 'todo',
+  in_process: 'in_process',
+  completed: 'completed',
+};
+
+// Role Enum
+const Role = {
+  admin: 'admin',
+  user: 'user',
+};
+
+/**
+ * Helper to fetch a user snapshot for embedding
+ */
+const getUserSnapshot = async (userId) => {
+  if (!userId) return null;
+
+  try {
+    const userDoc = await firestore.collection('users').doc(userId).get();
+    if (!userDoc.exists) return null;
+
+    const data = userDoc.data();
+    return {
+      id: data.id,
+      name: data.name,
+      avatar: data.avatar || null,
+    };
+  } catch (error) {
+    console.error('Error fetching user snapshot:', error);
+    return null;
+  }
+};
+
+/**
+ * List tasks with filters and pagination
+ * GET /api/tasks?status=...&assignee=...&priority=...&page=1&limit=10
+ */
+const listTasks = async (req, res) => {
+  try {
+    const { status, assignee, priority, page = '1', limit = '10' } = req.query;
+    const p = parseInt(page);
+    const l = parseInt(limit);
+    const offset = (p - 1) * l;
+
+    let query = firestore.collection('tasks');
+
+    // Filters
+    if (status) query = query.where('status', '==', status);
+    if (assignee) query = query.where('assignee.id', '==', assignee);
+    if (priority) query = query.where('priority', '==', priority);
+
+    // Get total count
+    const totalSnapshot = await query.count().get();
+    const total = totalSnapshot.data().count;
+
+    // Fetch paginated tasks
+    const snapshot = await query
+      .orderBy('created_at', 'desc')
+      .offset(offset)
+      .limit(l)
+      .get();
+
+    const tasks = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        due_date: data.due_date ? data.due_date.toDate() : null,
+        created_at: data.created_at ? data.created_at.toDate() : null,
+        updated_at: data.updated_at ? data.updated_at.toDate() : null,
+      };
     });
+
+    res.json({
+      tasks,
+      total,
+      page: p,
+      limit: l,
+    });
+  } catch (error) {
+    console.error('List tasks error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+
+/**
+ * Get single task with activity logs
+ * GET /api/tasks/:id
+ */
+const getTask = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Task ID is required' });
+  }
+
+  try {
+    const taskDoc = await firestore.collection('tasks').doc(id).get();
+
+    if (!taskDoc.exists) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    const taskData = taskDoc.data();
+
+    // Fetch related activity logs
+    const logsSnapshot = await firestore
+      .collection('activity_logs')
+      .where('task_id', '==', id)
+      .orderBy('timestamp', 'desc')
+      .get();
+
+    const activity_logs = logsSnapshot.docs.map((doc) => {
+      const log = doc.data();
+      return {
+        id: doc.id,
+        ...log,
+        timestamp: log.timestamp ? log.timestamp.toDate() : null,
+      };
+    });
+
+    res.json({
+      id: taskDoc.id,
+      ...taskData,
+      due_date: taskData.due_date ? taskData.due_date.toDate() : null,
+      created_at: taskData.created_at ? taskData.created_at.toDate() : null,
+      updated_at: taskData.updated_at ? taskData.updated_at.toDate() : null,
+      activity_logs,
+    });
+  } catch (error) {
+    console.error('Get task error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteTask = exports.updateTaskStatus = exports.updateTask = exports.createTask = exports.listTasks = void 0;
-const prisma_1 = __importDefault(require("../utils/prisma"));
-const zod_schema_1 = require("../schema/zod.schema");
-const client_1 = require("@prisma/client");
-const listTasks = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { status, assignee, priority } = req.query;
-    const where = {};
-    if (status && Object.values(client_1.TaskStatus).includes(status)) {
-        where.status = status;
+
+/**
+ * Create task
+ * POST /api/tasks
+ */
+const createTask = async (req, res) => {
+  const {
+    title,
+    description,
+    priority,
+    due_date,
+    time_allocation,
+    assignee_id,
+  } = req.body;
+
+  const creatorId = req.user ? req.user.id : null;
+
+  if (!title) {
+    return res.status(400).json({ message: 'Title is required' });
+  }
+
+  if (!creatorId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  try {
+    const creatorSnapshot = await getUserSnapshot(creatorId);
+    if (!creatorSnapshot) {
+      return res.status(404).json({ message: 'Creator not found' });
     }
-    if (assignee) {
-        where.assigneeId = assignee;
+
+    let assigneeSnapshot = null;
+    if (assignee_id) {
+      assigneeSnapshot = await getUserSnapshot(assignee_id);
     }
-    if (priority && Object.values(client_1.Priority).includes(priority)) {
-        where.priority = priority;
+
+    const taskId = uuidv4();
+    const now = Timestamp.now();
+
+    const newTask = {
+      id: taskId,
+      title,
+      description: description || '',
+      status: TaskStatus.todo,
+      priority: priority || 'medium',
+      due_date: due_date ? Timestamp.fromDate(new Date(due_date)) : null,
+      time_allocation: time_allocation || null,
+      creator: creatorSnapshot,
+      assignee: assigneeSnapshot,
+      created_at: now,
+      updated_at: now,
+    };
+
+    const logId = uuidv4();
+    const log = {
+      id: logId,
+      task_id: taskId,
+      user: {
+        id: creatorSnapshot.id,
+        name: creatorSnapshot.name,
+      },
+      action: 'Task created',
+      timestamp: now,
+    };
+
+    await firestore.runTransaction(async (transaction) => {
+      transaction.set(firestore.collection('tasks').doc(taskId), newTask);
+      transaction.set(firestore.collection('activity_logs').doc(logId), log);
+    });
+
+    res.status(201).json({
+      ...newTask,
+      due_date: newTask.due_date ? newTask.due_date.toDate() : null,
+      created_at: newTask.created_at.toDate(),
+      updated_at: newTask.updated_at.toDate(),
+    });
+  } catch (error) {
+    console.error('Create task error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * Update task
+ * PUT /api/tasks/:id
+ */
+const updateTask = async (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+  const userId = req.user ? req.user.id : null;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Task ID is required' });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  try {
+    const taskRef = firestore.collection('tasks').doc(id);
+    const taskDoc = await taskRef.get();
+
+    if (!taskDoc.exists) {
+      return res.status(404).json({ message: 'Task not found' });
     }
-    try {
-        const tasks = yield prisma_1.default.task.findMany({
-            where,
-            include: {
-                creator: { select: { id: true, name: true, avatar: true } },
-                assignee: { select: { id: true, name: true, avatar: true } },
-                activityLogs: {
-                    include: { user: { select: { name: true } } },
-                    orderBy: { timestamp: 'desc' },
-                },
-            },
-            orderBy: { createdAt: 'desc' },
+
+    const existingTask = taskDoc.data();
+
+    // Permissions (Staff can only update assigned/created tasks?)
+    if (
+      req.user.role !== Role.admin &&
+      existingTask.creator.id !== userId &&
+      (existingTask.assignee ? existingTask.assignee.id !== userId : true)
+    ) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const updateData = {};
+
+    // Update fields if provided
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined)
+      updateData.description = data.description;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+
+    if (data.due_date !== undefined) {
+      updateData.due_date = data.due_date
+        ? Timestamp.fromDate(new Date(data.due_date))
+        : null;
+    }
+
+    if (data.time_allocation !== undefined) {
+      updateData.time_allocation = data.time_allocation;
+    }
+
+    // Handling assignee
+    if (data.assignee_id !== undefined) {
+      if (data.assignee_id) {
+        const assigneeSnap = await getUserSnapshot(data.assignee_id);
+        updateData.assignee = assigneeSnap;
+      } else {
+        updateData.assignee = null;
+      }
+    }
+
+    updateData.updated_at = Timestamp.now();
+
+    // Detect changes for log
+    const changes = [];
+    if (data.title && data.title !== existingTask.title) changes.push('title');
+    if (data.description && data.description !== existingTask.description)
+      changes.push('description');
+    if (data.priority && data.priority !== existingTask.priority)
+      changes.push('priority');
+    if (
+      data.assignee_id !== undefined &&
+      data.assignee_id !==
+        (existingTask.assignee ? existingTask.assignee.id : null)
+    ) {
+      changes.push('assignee');
+    }
+
+    if (changes.length > 0) {
+      const logId = uuidv4();
+      const userSnapshot = await getUserSnapshot(userId);
+
+      await firestore
+        .collection('activity_logs')
+        .doc(logId)
+        .set({
+          id: logId,
+          task_id: id,
+          user: {
+            id: userId,
+            name: userSnapshot ? userSnapshot.name : 'User',
+          },
+          action: `Updated ${changes.join(', ')}`,
+          timestamp: updateData.updated_at,
         });
-        res.json(tasks);
     }
-    catch (error) {
-        res.status(500).json({ message: 'Server error' });
+
+    await taskRef.update(updateData);
+
+    res.json({ message: 'Task updated successfully' });
+  } catch (error) {
+    console.error('Update task error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * Update task status
+ * PATCH /api/tasks/:id/status
+ */
+const updateTaskStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const userId = req.user ? req.user.id : null;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Task ID is required' });
+  }
+
+  if (!status) {
+    return res.status(400).json({ message: 'Status is required' });
+  }
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  try {
+    const taskRef = firestore.collection('tasks').doc(id);
+    const taskDoc = await taskRef.get();
+
+    if (!taskDoc.exists) {
+      return res.status(404).json({ message: 'Task not found' });
     }
-});
-exports.listTasks = listTasks;
-const createTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const validation = zod_schema_1.createTaskSchema.safeParse(req.body);
-    if (!validation.success) {
-        return res.status(400).json({ errors: validation.error.errors });
+
+    const existingTask = taskDoc.data();
+    const newStatus = status === 'in-process' ? TaskStatus.in_process : status;
+
+    if (existingTask.status === newStatus) {
+      return res.json({ message: 'Status unchanged' });
     }
-    const { title, description, priority, dueDate, timeAllocation, assigneeId } = validation.data;
-    const creatorId = req.user.id;
-    try {
-        const task = yield prisma_1.default.task.create({
-            data: {
-                title,
-                description,
-                priority,
-                dueDate: dueDate ? new Date(dueDate) : null,
-                timeAllocation,
-                creatorId,
-                assigneeId,
-                status: client_1.TaskStatus.todo,
-            },
-            include: {
-                creator: { select: { id: true, name: true } },
-                assignee: { select: { id: true, name: true } },
-            },
-        });
-        // Log activity
-        yield prisma_1.default.activityLog.create({
-            data: {
-                taskId: task.id,
-                userId: creatorId,
-                action: 'Task created',
-            },
-        });
-        res.status(201).json(task);
+
+    const now = Timestamp.now();
+
+    // Update task status
+    await taskRef.update({
+      status: newStatus,
+      updated_at: now,
+    });
+
+    // Create activity log
+    const logId = uuidv4();
+    const userSnapshot = await getUserSnapshot(userId);
+
+    await firestore
+      .collection('activity_logs')
+      .doc(logId)
+      .set({
+        id: logId,
+        task_id: id,
+        user: {
+          id: userId,
+          name: userSnapshot ? userSnapshot.name : 'User',
+        },
+        action: `Changed status from ${existingTask.status} to ${newStatus}`,
+        timestamp: now,
+      });
+
+    res.json({ message: 'Status updated successfully' });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * Delete task
+ * DELETE /api/tasks/:id
+ */
+const deleteTask = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Task ID is required' });
+  }
+
+  try {
+    const taskRef = firestore.collection('tasks').doc(id);
+    const taskDoc = await taskRef.get();
+
+    if (!taskDoc.exists) {
+      return res.status(404).json({ message: 'Task not found' });
     }
-    catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+
+    // Delete the task
+    await taskRef.delete();
+
+    // Delete associated activity logs
+    const logsSnapshot = await firestore
+      .collection('activity_logs')
+      .where('task_id', '==', id)
+      .get();
+
+    if (!logsSnapshot.empty) {
+      const batch = firestore.batch();
+      logsSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
     }
-});
-exports.createTask = createTask;
-const updateTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const validation = zod_schema_1.updateTaskSchema.safeParse(req.body);
-    if (!validation.success) {
-        return res.status(400).json({ errors: validation.error.errors });
-    }
-    const { id } = req.params;
-    const data = validation.data;
-    const userId = req.user.id;
-    try {
-        const existingTask = yield prisma_1.default.task.findUnique({ where: { id } });
-        if (!existingTask)
-            return res.status(404).json({ message: 'Task not found' });
-        const updatedTask = yield prisma_1.default.task.update({
-            where: { id },
-            data: Object.assign(Object.assign({}, data), { dueDate: data.dueDate ? new Date(data.dueDate) : data.dueDate }),
-        });
-        // Detect changes for log
-        const changes = [];
-        if (data.title && data.title !== existingTask.title)
-            changes.push('title');
-        if (data.description && data.description !== existingTask.description)
-            changes.push('description');
-        if (data.priority && data.priority !== existingTask.priority)
-            changes.push('priority');
-        if (data.assigneeId !== undefined &&
-            data.assigneeId !== existingTask.assigneeId)
-            changes.push('assignee');
-        if (changes.length > 0) {
-            yield prisma_1.default.activityLog.create({
-                data: {
-                    taskId: id,
-                    userId,
-                    action: `Updated ${changes.join(', ')}`,
-                },
-            });
-        }
-        res.json(updatedTask);
-    }
-    catch (error) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-exports.updateTask = updateTask;
-const updateTaskStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const validation = zod_schema_1.updateTaskStatusSchema.safeParse(req.body);
-    if (!validation.success) {
-        return res.status(400).json({ errors: validation.error.errors });
-    }
-    const { id } = req.params;
-    const { status } = validation.data;
-    const userId = req.user.id;
-    try {
-        const existingTask = yield prisma_1.default.task.findUnique({ where: { id } });
-        if (!existingTask)
-            return res.status(404).json({ message: 'Task not found' });
-        if (existingTask.status === status) {
-            return res.json(existingTask); // No change
-        }
-        const updatedTask = yield prisma_1.default.task.update({
-            where: { id },
-            data: { status },
-        });
-        yield prisma_1.default.activityLog.create({
-            data: {
-                taskId: id,
-                userId,
-                action: `Changed status from ${existingTask.status} to ${status}`,
-            },
-        });
-        res.json(updatedTask);
-    }
-    catch (error) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-exports.updateTaskStatus = updateTaskStatus;
-const deleteTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    try {
-        yield prisma_1.default.task.delete({ where: { id } });
-        res.json({ message: 'Task deleted successfully' });
-    }
-    catch (error) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-exports.deleteTask = deleteTask;
+
+    res.json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    console.error('Delete task error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Export the functions
+module.exports = {
+  listTasks,
+  getTask,
+  createTask,
+  updateTask,
+  updateTaskStatus,
+  deleteTask,
+  TaskStatus,
+  Role,
+};
