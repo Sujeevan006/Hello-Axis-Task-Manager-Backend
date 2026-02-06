@@ -68,7 +68,7 @@ export const listTasks = async (req: Request, res: Response) => {
       .limit(l)
       .get();
 
-    const tasks = snapshot.docs.map((doc) => {
+    const tasks = snapshot.docs.map((doc: any) => {
       const data = doc.data();
       return {
         id: doc.id,

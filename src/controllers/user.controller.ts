@@ -91,6 +91,14 @@ export const createUser = async (req: Request, res: Response) => {
   }
 
   try {
+    console.log('🔧 Creating user with data:', {
+      name,
+      email,
+      role,
+      department,
+    });
+
+    // Check if user exists
     const existingQuery = await firestore
       .collection('users')
       .where('email', '==', email)
@@ -98,12 +106,16 @@ export const createUser = async (req: Request, res: Response) => {
       .get();
 
     if (!existingQuery.empty) {
+      console.log('❌ User already exists:', email);
       return res.status(400).json({ message: 'User already exists' });
     }
 
     // Auto-generate temp password
     const tempPassword = Math.random().toString(36).slice(-8);
+    console.log('🔧 Generated temp password:', tempPassword);
+
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    console.log('🔧 Password hashed successfully');
 
     // Generate a new document ID
     const id = firestore.collection('users').doc().id;
@@ -122,7 +134,10 @@ export const createUser = async (req: Request, res: Response) => {
       updated_at: now,
     };
 
+    console.log('🔧 Saving user to Firestore:', newUser);
+
     await firestore.collection('users').doc(id).set(newUser);
+    console.log('✅ User created successfully:', id);
 
     res.status(201).json({
       message: 'User created successfully',
@@ -135,9 +150,48 @@ export const createUser = async (req: Request, res: Response) => {
       },
       tempPassword,
     });
-  } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (error: any) {
+    console.error('❌ Create user error DETAILS:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Request body:', req.body);
+    console.error('❌ Request user:', (req as any).user);
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Test Firestore connection
+ * GET /api/users/test/firestore
+ */
+export const testFirestore = async (req: Request, res: Response) => {
+  try {
+    console.log('🔧 Testing Firestore connection...');
+
+    // Try to write a test document
+    const testRef = firestore.collection('test').doc('connection-test');
+    await testRef.set({
+      test: true,
+      timestamp: Timestamp.now(),
+    });
+
+    // Try to read it back
+    const doc = await testRef.get();
+
+    if (doc.exists) {
+      console.log('✅ Firestore connection test PASSED');
+      await testRef.delete(); // Clean up
+      res.json({ message: 'Firestore is working', data: doc.data() });
+    } else {
+      console.log('❌ Firestore connection test FAILED');
+      res.status(500).json({ message: 'Firestore test failed' });
+    }
+  } catch (error: any) {
+    console.error('❌ Firestore test error:', error);
+    res.status(500).json({ message: 'Firestore error', error: error.message });
   }
 };
 
@@ -212,7 +266,7 @@ export const updateUserRole = async (req: Request, res: Response) => {
 
     await userRef.update({
       role: role,
-      updated_at: Timestamp.now()
+      updated_at: Timestamp.now(),
     });
 
     res.json({ message: 'User role updated successfully' });

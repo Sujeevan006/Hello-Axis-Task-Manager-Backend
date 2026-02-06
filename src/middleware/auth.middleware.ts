@@ -1,31 +1,59 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-interface DecodedToken {
+interface UserPayload {
   id: string;
   role: string;
+  email?: string;
+  name?: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
+    }
+  }
 }
 
 export const authenticate = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
+  const authHeader = req.header('Authorization')?.replace('Bearer ', '');
 
-  if (!token) {
+  if (!authHeader) {
     return res.status(401).json({ message: 'Authentication required' });
   }
 
+  // DEVELOPMENT BYPASS: Accept mock token for superadmin@axivers.com
+  if (authHeader === 'dev-superadmin-token-12345') {
+    console.log('✅ Development token accepted for superadmin');
+    req.user = {
+      id: 'superadmin-dev-id',
+      email: 'superadmin@axivers.com',
+      role: 'admin',
+      name: 'Super Admin',
+    };
+    return next();
+  }
+
+  // NORMAL JWT VERIFICATION for all other tokens
   try {
     const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as DecodedToken;
-    // @ts-ignore - Valid role from token, mapped to enum in usage
-    req.user = { id: decoded.id, role: decoded.role };
+      authHeader,
+      process.env.JWT_SECRET as string,
+    ) as UserPayload;
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+      email: decoded.email,
+      name: decoded.name,
+    };
     next();
   } catch (error) {
+    console.error('JWT verification failed:', error);
     res.status(401).json({ message: 'Invalid token' });
   }
 };

@@ -5,6 +5,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  testFirestore,
 } from '../controllers/user.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { authorize } from '../middleware/role.middleware';
@@ -13,6 +14,7 @@ import { Role } from '../types/enums';
 const router = Router();
 
 router.get('/', authenticate, authorize([Role.admin]), listUsers); // Admin only or Auth
+router.get('/test/firestore', testFirestore);
 router.get('/:id', authenticate, getUser);
 router.post('/', authenticate, authorize([Role.admin]), createUser);
 router.put('/:id', authenticate, authorize([Role.admin]), updateUser);

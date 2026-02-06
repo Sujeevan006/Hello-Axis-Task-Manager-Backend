@@ -1,278 +1,305 @@
-'use strict';
-
-const bcrypt = require('bcryptjs');
-const { firestore, Timestamp } = require('../utils/firebase');
-
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteUser = exports.updateUserRole = exports.updateUser = exports.testFirestore = exports.createUser = exports.getUser = exports.listUsers = void 0;
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const firebase_1 = require("../utils/firebase");
 /**
  * List all users with pagination
  * GET /api/users?page=1&limit=10
  */
-const listUsers = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    const usersRef = firestore.collection('users');
-
-    // Get total count using aggregation query
-    const totalSnapshot = await usersRef.count().get();
-    const total = totalSnapshot.data().count;
-
-    // Fetch paginated users
-    const snapshot = await usersRef
-      .orderBy('created_at', 'desc')
-      .offset(offset)
-      .limit(limit)
-      .get();
-
-    const users = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        avatar: data.avatar,
-        department: data.department,
-        created_at: data.created_at ? data.created_at.toDate() : null,
-      };
-    });
-
-    res.json({
-      users,
-      total,
-      page,
-      limit,
-    });
-  } catch (error) {
-    console.error('List users error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
+const listUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const usersRef = firebase_1.firestore.collection('users');
+        // Get total count using aggregation query
+        const totalSnapshot = yield usersRef.count().get();
+        const total = totalSnapshot.data().count;
+        // Fetch paginated users
+        const snapshot = yield usersRef
+            .orderBy('created_at', 'desc')
+            .offset(offset)
+            .limit(limit)
+            .get();
+        const users = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                id: data.id,
+                name: data.name,
+                email: data.email,
+                role: data.role,
+                avatar: data.avatar,
+                department: data.department,
+                created_at: data.created_at ? data.created_at.toDate() : null,
+            };
+        });
+        res.json({
+            users,
+            total,
+            page,
+            limit,
+        });
+    }
+    catch (error) {
+        console.error('List users error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.listUsers = listUsers;
 /**
  * Get a single user by ID
  * GET /api/users/:id
  */
-const getUser = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const userDoc = await firestore.collection('users').doc(id).get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User not found' });
+const getUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    try {
+        const userDoc = yield firebase_1.firestore.collection('users').doc(id).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const user = userDoc.data();
+        res.json({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+            department: user.department,
+            created_at: user.created_at ? user.created_at.toDate() : null,
+        });
     }
-
-    const user = userDoc.data();
-    res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      avatar: user.avatar,
-      department: user.department,
-      created_at: user.created_at ? user.created_at.toDate() : null,
-    });
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
+    catch (error) {
+        console.error('Get user error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.getUser = getUser;
 /**
  * Create user (Admin only)
  * POST /api/users
  */
-const createUser = async (req, res) => {
-  const { name, email, role, avatar, department } = req.body;
-
-  if (!name || !email) {
-    return res.status(400).json({ message: 'Name and email are required' });
-  }
-
-  try {
-    const existingQuery = await firestore
-      .collection('users')
-      .where('email', '==', email)
-      .limit(1)
-      .get();
-
-    if (!existingQuery.empty) {
-      return res.status(400).json({ message: 'User already exists' });
+const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { name, email, role, avatar, department } = req.body;
+    if (!name || !email) {
+        return res.status(400).json({ message: 'Name and email are required' });
     }
-
-    // Auto-generate temp password
-    const tempPassword = Math.random().toString(36).slice(-8);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
-    // Generate a new document ID
-    const id = firestore.collection('users').doc().id;
-    const now = Timestamp.now();
-
-    const newUser = {
-      id,
-      name,
-      email,
-      role: role || 'user',
-      avatar: avatar || null,
-      department: department || null,
-      password: hashedPassword,
-      needs_password_change: true,
-      created_at: now,
-      updated_at: now,
-    };
-
-    await firestore.collection('users').doc(id).set(newUser);
-
-    res.status(201).json({
-      message: 'User created successfully',
-      user: {
-        id,
-        name,
-        email,
-        role: newUser.role,
-        department: newUser.department,
-      },
-      tempPassword,
-    });
-  } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
+    try {
+        console.log('🔧 Creating user with data:', {
+            name,
+            email,
+            role,
+            department,
+        });
+        // Check if user exists
+        const existingQuery = yield firebase_1.firestore
+            .collection('users')
+            .where('email', '==', email)
+            .limit(1)
+            .get();
+        if (!existingQuery.empty) {
+            console.log('❌ User already exists:', email);
+            return res.status(400).json({ message: 'User already exists' });
+        }
+        // Auto-generate temp password
+        const tempPassword = Math.random().toString(36).slice(-8);
+        console.log('🔧 Generated temp password:', tempPassword);
+        const hashedPassword = yield bcryptjs_1.default.hash(tempPassword, 10);
+        console.log('🔧 Password hashed successfully');
+        // Generate a new document ID
+        const id = firebase_1.firestore.collection('users').doc().id;
+        const now = firebase_1.Timestamp.now();
+        const newUser = {
+            id,
+            name,
+            email,
+            role: role || 'user',
+            avatar: avatar || null,
+            department: department || null,
+            password: hashedPassword,
+            needs_password_change: true,
+            created_at: now,
+            updated_at: now,
+        };
+        console.log('🔧 Saving user to Firestore:', newUser);
+        yield firebase_1.firestore.collection('users').doc(id).set(newUser);
+        console.log('✅ User created successfully:', id);
+        res.status(201).json({
+            message: 'User created successfully',
+            user: {
+                id,
+                name,
+                email,
+                role: newUser.role,
+                department: newUser.department,
+            },
+            tempPassword,
+        });
+    }
+    catch (error) {
+        console.error('❌ Create user error DETAILS:', error);
+        console.error('❌ Error stack:', error.stack);
+        console.error('❌ Request body:', req.body);
+        console.error('❌ Request user:', req.user);
+        res.status(500).json({
+            message: 'Server error',
+            error: error.message,
+        });
+    }
+});
+exports.createUser = createUser;
+/**
+ * Test Firestore connection
+ * GET /api/users/test/firestore
+ */
+const testFirestore = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        console.log('🔧 Testing Firestore connection...');
+        // Try to write a test document
+        const testRef = firebase_1.firestore.collection('test').doc('connection-test');
+        yield testRef.set({
+            test: true,
+            timestamp: firebase_1.Timestamp.now(),
+        });
+        // Try to read it back
+        const doc = yield testRef.get();
+        if (doc.exists) {
+            console.log('✅ Firestore connection test PASSED');
+            yield testRef.delete(); // Clean up
+            res.json({ message: 'Firestore is working', data: doc.data() });
+        }
+        else {
+            console.log('❌ Firestore connection test FAILED');
+            res.status(500).json({ message: 'Firestore test failed' });
+        }
+    }
+    catch (error) {
+        console.error('❌ Firestore test error:', error);
+        res.status(500).json({ message: 'Firestore error', error: error.message });
+    }
+});
+exports.testFirestore = testFirestore;
 /**
  * Update user
  * PUT /api/users/:id
  */
-const updateUser = async (req, res) => {
-  const { id } = req.params;
-  const { name, email, role, avatar, department } = req.body;
-
-  if (!id) {
-    return res.status(400).json({ message: 'User ID is required' });
-  }
-
-  try {
-    const userRef = firestore.collection('users').doc(id);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User not found' });
+const updateUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { name, email, role, avatar, department } = req.body;
+    if (!id) {
+        return res.status(400).json({ message: 'User ID is required' });
     }
-
-    const updateData = {};
-
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
-    if (role !== undefined) updateData.role = role;
-    if (avatar !== undefined) updateData.avatar = avatar;
-    if (department !== undefined) updateData.department = department;
-
-    updateData.updated_at = Timestamp.now();
-
-    await userRef.update(updateData);
-
-    const updatedDoc = await userRef.get();
-    const user = updatedDoc.data();
-
-    res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      avatar: user.avatar,
-      department: user.department,
-    });
-  } catch (error) {
-    console.error('Update user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
+    try {
+        const userRef = firebase_1.firestore.collection('users').doc(id);
+        const userDoc = yield userRef.get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const updateData = {};
+        if (name !== undefined)
+            updateData.name = name;
+        if (email !== undefined)
+            updateData.email = email;
+        if (role !== undefined)
+            updateData.role = role;
+        if (avatar !== undefined)
+            updateData.avatar = avatar;
+        if (department !== undefined)
+            updateData.department = department;
+        updateData.updated_at = firebase_1.Timestamp.now();
+        yield userRef.update(updateData);
+        const updatedDoc = yield userRef.get();
+        const user = updatedDoc.data();
+        res.json({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+            department: user.department,
+        });
+    }
+    catch (error) {
+        console.error('Update user error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.updateUser = updateUser;
 /**
  * Update user role
  * PUT /api/users/:id/role
  */
-const updateUserRole = async (req, res) => {
-  const { id } = req.params;
-  const { role } = req.body;
-
-  if (!id || !role) {
-    return res.status(400).json({ message: 'User ID and role are required' });
-  }
-
-  try {
-    const userRef = firestore.collection('users').doc(id);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User not found' });
+const updateUserRole = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!id || !role) {
+        return res.status(400).json({ message: 'User ID and role are required' });
     }
-
-    await userRef.update({
-      role: role,
-      updated_at: Timestamp.now(),
-    });
-
-    res.json({ message: 'User role updated successfully' });
-  } catch (error) {
-    console.error('Update user role error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
+    try {
+        const userRef = firebase_1.firestore.collection('users').doc(id);
+        const userDoc = yield userRef.get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        yield userRef.update({
+            role: role,
+            updated_at: firebase_1.Timestamp.now(),
+        });
+        res.json({ message: 'User role updated successfully' });
+    }
+    catch (error) {
+        console.error('Update user role error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.updateUserRole = updateUserRole;
 /**
  * Delete user
  * DELETE /api/users/:id
  */
-const deleteUser = async (req, res) => {
-  const { id } = req.params;
-
-  if (!id) {
-    return res.status(400).json({ message: 'User ID is required' });
-  }
-
-  try {
-    // First, check if user exists
-    const userRef = firestore.collection('users').doc(id);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      return res.status(404).json({ message: 'User not found' });
+const deleteUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    if (!id) {
+        return res.status(400).json({ message: 'User ID is required' });
     }
-
-    // Delete the user
-    await userRef.delete();
-
-    // Post-transaction cleanup: Detach from tasks (Async)
-    const assignedTasks = await firestore
-      .collection('tasks')
-      .where('assignee.id', '==', id)
-      .get();
-
-    if (!assignedTasks.empty) {
-      const batch = firestore.batch();
-      assignedTasks.forEach((doc) => {
-        batch.update(doc.ref, { assignee: null });
-      });
-      await batch.commit();
+    try {
+        // First, check if user exists
+        const userRef = firebase_1.firestore.collection('users').doc(id);
+        const userDoc = yield userRef.get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        // Delete the user
+        yield userRef.delete();
+        // Post-transaction cleanup: Detach from tasks (Async)
+        const assignedTasks = yield firebase_1.firestore
+            .collection('tasks')
+            .where('assignee.id', '==', id)
+            .get();
+        if (!assignedTasks.empty) {
+            const batch = firebase_1.firestore.batch();
+            assignedTasks.forEach((doc) => {
+                batch.update(doc.ref, { assignee: null });
+            });
+            yield batch.commit();
+        }
+        res.json({ message: 'User deleted successfully' });
     }
-
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Export the functions
-module.exports = {
-  listUsers,
-  getUser,
-  createUser,
-  updateUser,
-  deleteUser,
-  updateUserRole,
-};
+    catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.deleteUser = deleteUser;
