@@ -288,34 +288,47 @@ export const deleteUser = async (req: Request, res: Response) => {
   }
 
   try {
+    console.log('🗑️ Deleting user:', id);
+
     // First, check if user exists
     const userRef = firestore.collection('users').doc(id);
     const userDoc = await userRef.get();
 
     if (!userDoc.exists) {
+      console.log('❌ Delete failed: User not found', id);
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Delete the user
     await userRef.delete();
+    console.log('✅ User document deleted from Firestore');
 
     // Post-transaction cleanup: Detach from tasks (Async)
+    console.log('🔧 Detaching user from assigned tasks...');
     const assignedTasks = await firestore
       .collection('tasks')
       .where('assignee.id', '==', id)
       .get();
 
     if (!assignedTasks.empty) {
+      console.log(`🔧 Found ${assignedTasks.size} tasks to update`);
       const batch = firestore.batch();
       assignedTasks.forEach((doc) => {
         batch.update(doc.ref, { assignee: null });
       });
       await batch.commit();
+      console.log('✅ Tasks updated successfully');
+    } else {
+      console.log('ℹ️ No assigned tasks found for this user');
     }
 
     res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (error: any) {
+    console.error('❌ Delete user error DETAILS:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
   }
 };

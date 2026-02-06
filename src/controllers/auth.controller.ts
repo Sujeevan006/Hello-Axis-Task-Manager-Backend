@@ -16,6 +16,8 @@ export const login = async (req: Request, res: Response) => {
   }
 
   try {
+    console.log('🔑 Login attempt:', email);
+
     const userQuery = await firestore
       .collection('users')
       .where('email', '==', email)
@@ -23,22 +25,31 @@ export const login = async (req: Request, res: Response) => {
       .get();
 
     if (userQuery.empty) {
+      console.log('❌ Login failed: User not found', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const userDoc = userQuery.docs[0];
     const user = userDoc.data();
+    console.log('👤 User found in Firestore:', {
+      id: user.id,
+      role: user.role,
+      needs_password_change: user.needs_password_change,
+    });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('❌ Login failed: Incorrect password', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET as string, // Changed from 'your-secret-key'
+      process.env.JWT_SECRET as string,
       { expiresIn: '1d' },
     );
+
+    console.log('✅ Login successful:', email);
 
     res.json({
       token,
@@ -53,9 +64,13 @@ export const login = async (req: Request, res: Response) => {
         created_at: user.created_at ? user.created_at.toDate() : null,
       },
     });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+  } catch (error: any) {
+    console.error('❌ Login error DETAILS:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
   }
 };
 

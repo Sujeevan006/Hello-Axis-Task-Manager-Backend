@@ -12,15 +12,16 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: ['https://project.axivers.com', 'http://localhost:5173'],
+    origin: [
+      'https://project.axivers.com',
+      'http://localhost:5173',
+      'http://localhost:3000',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   }),
 );
-
-// VERY IMPORTANT
-app.use(cors());
 
 app.use(morgan('dev'));
 app.use(express.json());
