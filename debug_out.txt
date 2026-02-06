@@ -1,0 +1,15 @@
+[dotenv@17.2.4] injecting env (5) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+Using Project ID: axis-task-manager-df9bf
+--- Collections found ---
+- activity_logs
+- tasks
+- users
+
+--- Samples from activity_logs ---
+- ID: a4470bdc-faa2-4023-902e-e8c8cbba93dc
+
+--- Samples from tasks ---
+- ID: 26e2d1f7-5c53-4dd3-aed4-b96618bddc8a
+
+--- Samples from users ---
+- ID: 014edad4-8a5c-4c24-812c-f5c235ecc52c

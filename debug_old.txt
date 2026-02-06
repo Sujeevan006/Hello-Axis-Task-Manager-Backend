@@ -1,0 +1,2 @@
+[dotenv@17.2.4] injecting env (4) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+Using Project ID: undefined

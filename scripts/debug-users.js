@@ -10,20 +10,23 @@ if (!admin.apps.length) {
   });
 }
 
+console.log('Using Project ID:', admin.app().options.projectId);
 const firestore = admin.firestore();
 
-async function listUsers() {
-  const snapshot = await firestore.collection('users').get();
-  console.log('--- Current Users in Firestore ---');
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    console.log(`- Email: "${data.email}", Role: ${data.role}, ID: ${data.id}`);
-  });
-  console.log('---------------------------------');
+async function listEverything() {
+  const collections = await firestore.listCollections();
+  console.log('--- Collections found ---');
+  collections.forEach((col) => console.log(`- ${col.id}`));
+
+  for (const col of collections) {
+    const snapshot = await col.limit(5).get();
+    console.log(`\n--- Samples from ${col.id} ---`);
+    snapshot.forEach((doc) => console.log(`- ID: ${doc.id}`));
+  }
   process.exit();
 }
 
-listUsers().catch((err) => {
+listEverything().catch((err) => {
   console.error(err);
   process.exit(1);
 });

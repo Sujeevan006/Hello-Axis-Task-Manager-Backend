@@ -1,0 +1,13 @@
+[dotenv@17.2.4] injecting env (5) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+--- REPAIR SCRIPT ---
+Project: axis-task-manager-df9bf
+Creds: F:\HELLO AXIS\Projects\task-management-backend\axis-task-manager-df9bf-firebase-adminsdk-fbsvc-95c953af69.json
+➕ Creating missing user: admin@mail.com
+✅ admin@mail.com created with password: password123
+➕ Creating missing user: kumar@gmail.com
+✅ kumar@gmail.com created with password: password123
+
+--- Final User List ---
+- superadmin@mail.com [admin]
+- admin@mail.com [admin]
+- kumar@gmail.com [staff]

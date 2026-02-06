@@ -19,7 +19,7 @@ const path = require('path');
 // --- Configuration ---
 const isDryRun = process.argv.includes('--dry-run');
 const serviceAccountPath =
-  process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+  process.env.GOOGLE_APPLICATION_CREDENTIALS ||
   'axis-task-manager-f6a3f8ae4929.json';
 const resolvedPath = path.isAbsolute(serviceAccountPath)
   ? serviceAccountPath
@@ -28,7 +28,6 @@ const resolvedPath = path.isAbsolute(serviceAccountPath)
 // Initialize Firebase
 admin.initializeApp({
   credential: admin.credential.cert(resolvedPath),
-  databaseId: 'task-management-db',
 });
 
 const firestore = admin.firestore();

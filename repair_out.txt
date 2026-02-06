@@ -1,0 +1,40 @@
+[dotenv@17.2.4] injecting env (4) from .env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+--- REPAIR SCRIPT ---
+Project: axis-task-manager-df9bf
+Creds: C:\Users\User\Documents\axis-task-manager-0d483f7967ae.json
+❌ Repair failed: Error: 5 NOT_FOUND: 
+    at callErrorFromStatus (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\call.js:32:19)
+    at Object.onReceiveStatus (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\client.js:359:73)
+    at Object.onReceiveStatus (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\client-interceptors.js:327:181)
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\resolving-call.js:135:78
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\client.js:342:32)
+    at ServiceClientImpl.<anonymous> (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@grpc\grpc-js\build\src\make-client.js:105:19)
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:242:33
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:38:28
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at Object.request (F:\HELLO AXIS\Projects\task-management-backend\node_modules\google-gax\build\src\streamingCalls\streaming.js:234:40)
+    at makeRequest (F:\HELLO AXIS\Projects\task-management-backend\node_modules\retry-request\index.js:159:28)
+    at retryRequest (F:\HELLO AXIS\Projects\task-management-backend\node_modules\retry-request\index.js:119:5)
+    at StreamProxy.setStream (F:\HELLO AXIS\Projects\task-management-backend\node_modules\google-gax\build\src\streamingCalls\streaming.js:225:37)
+    at StreamingApiCaller.call (F:\HELLO AXIS\Projects\task-management-backend\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:54:16)
+Caused by: Error
+    at QueryUtil._getResponse (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\reference\query-util.js:44:23)
+    at Query._getResponse (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\reference\query.js:784:32)
+    at Query._get (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\reference\query.js:777:35)
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\reference\query.js:745:43
+    at F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (F:\HELLO AXIS\Projects\task-management-backend\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28) {
+  code: 5,
+  details: '',
+  metadata: Metadata {
+    internalRepr: Map(1) { 'x-debug-tracking-id' => [Array] },
+    opaqueData: Map(0) {},
+    options: {}
+  }
+}
