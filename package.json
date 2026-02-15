@@ -2,17 +2,18 @@
   "name": "task-management-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server.js",
+  "type": "commonjs",
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
+    "seed": "ts-node src/utils/seed.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
@@ -37,7 +38,6 @@
     "firebase-admin": "^13.6.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.10.1",
     "prisma": "^5.22.0",
     "uuid": "^13.0.0",
     "zod": "^4.3.4"
