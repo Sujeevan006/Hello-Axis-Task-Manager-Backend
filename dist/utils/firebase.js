@@ -32,15 +32,32 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminInstance = exports.FieldValue = exports.Timestamp = exports.auth = exports.firestore = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase
-const serviceAccount = require(process.env.GOOGLE_APPLICATION_CREDENTIALS || '');
+const path_1 = __importDefault(require("path"));
+// Resolve service account path relative to project root
+const credPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '';
+const resolvedCredPath = path_1.default.isAbsolute(credPath)
+    ? credPath
+    : path_1.default.resolve(process.cwd(), credPath);
+console.log('🔥 Initializing Firebase with project:', process.env.FIREBASE_PROJECT_ID);
+console.log('📂 Credentials path:', resolvedCredPath);
+let serviceAccount;
+try {
+    serviceAccount = require(resolvedCredPath);
+}
+catch (error) {
+    console.error('❌ Failed to load Firebase credentials from:', resolvedCredPath);
+    throw error;
+}
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        projectId: process.env.FIREBASE_PROJECT_ID,
     });
 }
 exports.firestore = admin.firestore();

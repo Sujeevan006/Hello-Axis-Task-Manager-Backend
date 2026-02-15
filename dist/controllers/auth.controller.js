@@ -17,32 +17,47 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const uuid_1 = require("uuid");
 const firebase_1 = require("../utils/firebase");
+const enums_1 = require("../types/enums");
 /**
  * User Login
  * POST /api/auth/login
  */
 const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
     }
+    // Normalize email
+    email = email.toLowerCase().trim();
     try {
+        console.log('🔑 Login attempt:', email);
         const userQuery = yield firebase_1.firestore
             .collection('users')
             .where('email', '==', email)
             .limit(1)
             .get();
         if (userQuery.empty) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            console.log('❌ Login failed: User not found', email);
+            return res
+                .status(401)
+                .json({ message: 'User not found. Check email spelling.' });
         }
         const userDoc = userQuery.docs[0];
         const user = userDoc.data();
+        console.log('👤 User found in Firestore:', {
+            id: user.id,
+            role: user.role,
+            needs_password_change: user.needs_password_change,
+        });
         const isMatch = yield bcryptjs_1.default.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            console.log('❌ Login failed: Incorrect password for', email);
+            return res
+                .status(401)
+                .json({ message: 'Incorrect password. Please try again.' });
         }
-        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, // Changed from 'your-secret-key'
-        { expiresIn: '1d' });
+        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        console.log('✅ Login successful:', email);
         res.json({
             token,
             user: {
@@ -58,8 +73,12 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         });
     }
     catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('❌ Login error DETAILS:', error);
+        console.error('❌ Error stack:', error.stack);
+        res.status(500).json({
+            message: 'Server error',
+            error: error.message,
+        });
     }
 });
 exports.login = login;
@@ -91,7 +110,7 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             name,
             email,
             password: hashedPassword,
-            role: role || 'user',
+            role: role || enums_1.Role.staff,
             avatar: avatar || null,
             department: department || null,
             needs_password_change: false,

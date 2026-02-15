@@ -15,12 +15,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteUser = exports.updateUserRole = exports.updateUser = exports.testFirestore = exports.createUser = exports.getUser = exports.listUsers = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const firebase_1 = require("../utils/firebase");
+const enums_1 = require("../types/enums");
 /**
  * List all users with pagination
  * GET /api/users?page=1&limit=10
  */
 const listUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        console.log('📋 Fetching user list... Query:', req.query);
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
@@ -37,7 +39,7 @@ const listUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const users = snapshot.docs.map((doc) => {
             const data = doc.data();
             return {
-                id: data.id,
+                id: doc.id,
                 name: data.name,
                 email: data.email,
                 role: data.role,
@@ -92,10 +94,12 @@ exports.getUser = getUser;
  * POST /api/users
  */
 const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { name, email, role, avatar, department } = req.body;
+    let { name, email, role, avatar, department } = req.body;
     if (!name || !email) {
         return res.status(400).json({ message: 'Name and email are required' });
     }
+    // Normalize email
+    email = email.toLowerCase().trim();
     try {
         console.log('🔧 Creating user with data:', {
             name,
@@ -125,7 +129,7 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             id,
             name,
             email,
-            role: role || 'user',
+            role: role || enums_1.Role.staff,
             avatar: avatar || null,
             department: department || null,
             password: hashedPassword,
@@ -275,31 +279,44 @@ const deleteUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         return res.status(400).json({ message: 'User ID is required' });
     }
     try {
+        console.log('🗑️ Deleting user:', id);
         // First, check if user exists
         const userRef = firebase_1.firestore.collection('users').doc(id);
         const userDoc = yield userRef.get();
         if (!userDoc.exists) {
+            console.log('❌ Delete failed: User not found', id);
             return res.status(404).json({ message: 'User not found' });
         }
         // Delete the user
         yield userRef.delete();
+        console.log('✅ User document deleted from Firestore');
         // Post-transaction cleanup: Detach from tasks (Async)
+        console.log('🔧 Detaching user from assigned tasks...');
         const assignedTasks = yield firebase_1.firestore
             .collection('tasks')
             .where('assignee.id', '==', id)
             .get();
         if (!assignedTasks.empty) {
+            console.log(`🔧 Found ${assignedTasks.size} tasks to update`);
             const batch = firebase_1.firestore.batch();
             assignedTasks.forEach((doc) => {
                 batch.update(doc.ref, { assignee: null });
             });
             yield batch.commit();
+            console.log('✅ Tasks updated successfully');
+        }
+        else {
+            console.log('ℹ️ No assigned tasks found for this user');
         }
         res.json({ message: 'User deleted successfully' });
     }
     catch (error) {
-        console.error('Delete user error:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('❌ Delete user error DETAILS:', error);
+        console.error('❌ Error stack:', error.stack);
+        res.status(500).json({
+            message: 'Server error',
+            error: error.message,
+        });
     }
 });
 exports.deleteUser = deleteUser;

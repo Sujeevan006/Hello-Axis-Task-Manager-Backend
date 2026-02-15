@@ -14,13 +14,15 @@ const task_routes_1 = __importDefault(require("./routes/task.routes"));
 const app = (0, express_1.default)();
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
-    origin: ['https://project.axivers.com', 'http://localhost:5173'],
+    origin: [
+        'https://project.axivers.com',
+        'http://localhost:5173',
+        'http://localhost:3000',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
 }));
-// VERY IMPORTANT
-app.use((0, cors_1.default)());
 app.use((0, morgan_1.default)('dev'));
 app.use(express_1.default.json());
 app.use((0, cookie_parser_1.default)());

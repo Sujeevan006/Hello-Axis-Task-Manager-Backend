@@ -14,25 +14,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedAdmin = void 0;
 const client_1 = require("@prisma/client");
-const prisma_1 = __importDefault(require("./prisma"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const prisma = new client_1.PrismaClient();
 const seedAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
     const adminEmail = 'avsinfo0824@gmail.com';
     try {
-        const existingAdmin = yield prisma_1.default.user.findUnique({
+        const existingAdmin = yield prisma.user.findUnique({
             where: { email: adminEmail },
         });
         if (!existingAdmin) {
             console.log('Seeding super admin...');
             const hashedPassword = yield bcryptjs_1.default.hash('admin123', 10);
-            yield prisma_1.default.user.create({
+            yield prisma.user.create({
                 data: {
                     name: 'Super Admin',
                     email: adminEmail,
-                    role: client_1.Role.admin,
                     password: hashedPassword,
-                    needs_password_change: true,
-                    department: 'Management',
+                    role: client_1.Role.ADMIN, // ✅ Correct capitalization
+                    needs_password_change: true, // ✅ now exists in schema
+                    department: 'Management', // ✅ now exists in schema
                 },
             });
             console.log('Super Admin seeded. Email: avsinfo0824@gmail.com, Password: admin123');
@@ -40,6 +40,9 @@ const seedAdmin = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     catch (error) {
         console.error('Error seeding admin:', error);
+    }
+    finally {
+        yield prisma.$disconnect();
     }
 });
 exports.seedAdmin = seedAdmin;

@@ -1,6 +1,7 @@
-import { Role } from '@prisma/client';
-import prisma from './prisma';
+import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
 
 export const seedAdmin = async () => {
   const adminEmail = 'avsinfo0824@gmail.com';
@@ -19,17 +20,20 @@ export const seedAdmin = async () => {
         data: {
           name: 'Super Admin',
           email: adminEmail,
-          role: Role.admin,
           password: hashedPassword,
-          needs_password_change: true,
-          department: 'Management',
+          role: Role.ADMIN, // ✅ Correct capitalization
+          needs_password_change: true, // ✅ now exists in schema
+          department: 'Management', // ✅ now exists in schema
         },
       });
+
       console.log(
         'Super Admin seeded. Email: avsinfo0824@gmail.com, Password: admin123',
       );
     }
   } catch (error) {
     console.error('Error seeding admin:', error);
+  } finally {
+    await prisma.$disconnect();
   }
 };
