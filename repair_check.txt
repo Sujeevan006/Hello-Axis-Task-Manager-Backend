@@ -1,0 +1,11 @@
+[dotenv@17.2.4] injecting env (5) from .env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+--- REPAIR SCRIPT ---
+Project: axis-task-manager-df9bf
+Creds: F:\HELLO AXIS\Projects\task-management-backend\axis-task-manager-df9bf-firebase-adminsdk-fbsvc-95c953af69.json
+✔ User already exists: admin@mail.com
+✔ User already exists: kumar@gmail.com
+
+--- Final User List ---
+- superadmin@mail.com [admin]
+- admin@mail.com [admin]
+- kumar@gmail.com [staff]
