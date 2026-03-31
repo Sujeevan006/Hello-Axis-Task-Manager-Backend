@@ -37,3 +37,5 @@ export const seedAdmin = async () => {
     await prisma.$disconnect();
   }
 };
+// Execution call
+seedAdmin();
